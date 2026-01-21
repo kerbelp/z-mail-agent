@@ -430,18 +430,6 @@ git push origin main
 # https://smith.langchain.com → Deployments → + New Deployment
 ```
 
-### Local Cron
-
-For running on your own always-on computer/server, use the included [run-cron.sh](run-cron.sh) script:
-
-```bash
-chmod +x run-cron.sh
-
-# Add to crontab
-crontab -e
-# Add: */15 * * * * /path/to/z-mail-agent/run-cron.sh
-```
-
 ## Contributing
 
 Contributions are welcome! Areas for improvement:
