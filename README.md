@@ -15,6 +15,8 @@ This email assistant automatically:
 
 ## Architecture
 
+![Workflow Diagram](assets/workflow.png)
+
 The codebase is organized into modular components for easy maintenance and extensibility:
 
 ```
