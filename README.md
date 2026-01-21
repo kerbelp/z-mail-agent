@@ -143,8 +143,14 @@ vi classifications.yaml
 Configure the assistant using environment variables in your `.env` file:
 
 ```bash
-# OpenAI API Key
-OPENAI_API_KEY=your_openai_api_key
+# LLM Configuration (for email classification)
+LLM_PROVIDER=openai              # Provider: openai, anthropic
+LLM_MODEL=gpt-4o                 # Model name (e.g., gpt-4o, gpt-4-turbo, claude-3-5-sonnet-20241022)
+LLM_TEMPERATURE=0                # Temperature 0-1 (0=deterministic, 1=creative)
+LLM_API_KEY=your_api_key         # API key for the LLM provider
+
+# Legacy: OPENAI_API_KEY still supported for backwards compatibility
+# OPENAI_API_KEY=your_openai_api_key
 
 # Zoho Mail Configuration
 ZOHO_MCP_URL=http://localhost:3000
@@ -160,6 +166,13 @@ ADD_LABEL=true       # Apply labels to processed emails
 
 ### Configuration Flags
 
+**LLM Settings:**
+- **LLM_PROVIDER**: AI provider to use (`openai`, `anthropic`)
+- **LLM_MODEL**: Model name (e.g., `gpt-4o`, `gpt-4-turbo`, `claude-3-5-sonnet-20241022`)
+- **LLM_TEMPERATURE**: Creativity level 0-1 (0=deterministic, recommended for classification)
+- **LLM_API_KEY**: API key for your chosen provider
+
+**Behavior Flags:**
 - **DEBUG**: When `true`, logs detailed API request/response information
 - **DRY_RUN**: When `true`, simulates actions without actually sending emails or modifying data
 - **SEND_REPLY**: Controls whether to send automated replies (only relevant when `DRY_RUN=false`)

@@ -83,6 +83,12 @@ def setup_logging():
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
     root_logger.setLevel(logging.INFO)
+    
+    # Suppress retry logs from httpx and openai libraries
+    # These create noise during rate limit retries
+    logging.getLogger("httpx").setLevel(logging.ERROR)
+    logging.getLogger("openai").setLevel(logging.ERROR)
+    logging.getLogger("httpcore").setLevel(logging.ERROR)
 
 
 # Setup logging before anything else
@@ -120,5 +126,11 @@ ZOHO_ACCOUNT_ID = os.getenv("ZOHO_ACCOUNT_ID")
 # Generic label ID for processed emails (provider-agnostic)
 PROCESSED_LABEL_ID = os.getenv("ZOHO_PROCESSED_LABEL_ID")
 
-# OpenAI settings
+# LLM Configuration
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()  # openai, anthropic, etc.
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o")  # Model name
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))  # Temperature (0-1)
+LLM_API_KEY = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")  # API key (fallback to OPENAI_API_KEY)
+
+# Legacy: Keep for backwards compatibility
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")

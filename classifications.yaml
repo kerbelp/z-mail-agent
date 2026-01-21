@@ -2,8 +2,14 @@
 # Define email classifications with custom prompts and actions
 
 classifications:
-  - name: article_submission
+  - name: delivery_failure
     priority: 1
+    description: "Bounce emails / delivery failure notifications"
+    classification_prompt: prompts/delivery_failure.txt
+    action: skip
+
+  - name: article_submission
+    priority: 2
     description: "Requests to submit articles or guest posts"
     classification_prompt: prompts/article_submission.txt
     action: reply

@@ -52,7 +52,9 @@ def create_classification_handler(email_provider: EmailProvider):
         if classification.action == "reply":
             return _handle_reply(state, email, classification, email_provider)
         elif classification.action == "skip":
-            return _skip_email(state, email, email_provider)
+            # Don't label emails that failed classification (classification_name == "error")
+            should_label = classification.classification_name != "error"
+            return _skip_email(state, email, email_provider, should_label=should_label)
         elif classification.action == "forward":
             # Future implementation
             logger.warning(f"Forward action not yet implemented")
@@ -130,19 +132,22 @@ def _handle_reply(state: AgentState, email: dict, classification, email_provider
     }
 
 
-def _skip_email(state: AgentState, email: dict, email_provider: EmailProvider):
-    """Skip email and mark as processed."""
+def _skip_email(state: AgentState, email: dict, email_provider: EmailProvider, should_label: bool = True):
+    """Skip email and optionally mark as processed."""
     message_id = email.get("messageId")
     folder_id = email.get("folderId")
     logger.info(f"[SKIP] Skipping email {message_id}, subject: {email.get('subject')}")
     
-    # Also label skipped emails so we don't re-process them
-    if RUN_CONFIG.add_label and message_id and folder_id and PROCESSED_LABEL_ID:
-        email_provider.apply_label(message_id, folder_id, PROCESSED_LABEL_ID)
-    elif not PROCESSED_LABEL_ID:
-        logger.warning("PROCESSED_LABEL_ID is not configured - skipping label application")
+    # Only label if should_label is True (don't label failed classifications)
+    if should_label:
+        if RUN_CONFIG.add_label and message_id and folder_id and PROCESSED_LABEL_ID:
+            email_provider.apply_label(message_id, folder_id, PROCESSED_LABEL_ID)
+        elif not PROCESSED_LABEL_ID:
+            logger.warning("PROCESSED_LABEL_ID is not configured - skipping label application")
+        else:
+            logger.warning(f"Cannot apply label: message_id={message_id}, folder_id={folder_id}")
     else:
-        logger.warning(f"Cannot apply label: message_id={message_id}, folder_id={folder_id}")
+        logger.info(f"Not labeling email due to classification error - will retry on next run")
     
     return {
         "emails": state["emails"],

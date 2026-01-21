@@ -8,11 +8,36 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from models import AgentState, ClassificationResult, EmailClassification
 from email_providers.base import EmailProvider
+from config import LLM_PROVIDER, LLM_MODEL, LLM_TEMPERATURE, LLM_API_KEY
 
 logger = logging.getLogger(__name__)
 
-# Initialize LLM
-model = ChatOpenAI(model="gpt-4o", temperature=0)
+# Initialize LLM based on provider
+def _get_llm():
+    """Get configured LLM model."""
+    provider = LLM_PROVIDER
+    
+    if provider == "openai":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=LLM_MODEL,
+            temperature=LLM_TEMPERATURE,
+            api_key=LLM_API_KEY
+        )
+    elif provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=LLM_MODEL,
+            temperature=LLM_TEMPERATURE,
+            api_key=LLM_API_KEY
+        )
+    else:
+        raise ValueError(
+            f"Unsupported LLM provider: {provider}. "
+            f"Supported providers: openai, anthropic"
+        )
+
+model = _get_llm()
 structured_llm = model.with_structured_output(ClassificationResult)
 
 
@@ -136,22 +161,24 @@ def create_classify_node(email_provider: EmailProvider):
             
         except Exception as e:
             error_msg = str(e)
+            # Only log WARNING once for the final failure (not each retry attempt)
+            logger.warning(
+                f"Failed to classify email {idx + 1} ({subject[:50]}...): {error_msg}"
+            )
             
-            # Check if this is a rate limit error
-            is_rate_limit = "rate_limit" in error_msg.lower() or "429" in error_msg
+            # Add to errors list
+            new_errors = state["errors"].copy()
+            new_errors.append(f"Failed to classify email {idx + 1} ({subject[:50]}...): {error_msg}")
             
-            if is_rate_limit:
-                logger.warning(f"Rate limit encountered on email {idx}, will retry automatically")
-            else:
-                logger.error(f"Error classifying email: {error_msg}")
-            
-            # Only add to errors list if it's not a rate limit (those are retried automatically)
-            # If rate limit retry fails, it will raise again and get caught here as a different error
-            if not is_rate_limit:
-                new_errors = state["errors"]
-                new_errors.append(f"Error classifying email {idx}: {error_msg}")
-            else:
-                new_errors = state["errors"]
+            # Skip this email and continue to next one
+            # Return with unclassified result so it gets skipped
+            email_classification = EmailClassification(
+                classification_name="error",
+                confidence=0.0,
+                reasoning=f"Classification failed: {error_msg}",
+                action="skip",
+                reply_template=None
+            )
             
             return {
                 "emails": state["emails"],
@@ -160,7 +187,7 @@ def create_classify_node(email_provider: EmailProvider):
                 "current_index": idx,
                 "errors": new_errors,
                 "current_email": email,
-                "classification_result": None
+                "classification_result": email_classification
             }
     
     return classify_email_node
@@ -172,8 +199,10 @@ def classification_router(state: AgentState):
     if state["current_index"] >= len(state["emails"]):
         return END
     
-    if not state.get("classification_result"):
-        return END
+    # Always route to handler (even if classification failed, it will skip)
+    if state.get("classification_result"):
+        return "handle_classification"
     
-    # All classifications go to the same generic handler
-    return "handle_classification"
+    # No classification result at all - shouldn't happen, but handle gracefully
+    logger.warning("No classification result - this shouldn't happen")
+    return END
