@@ -260,7 +260,7 @@ When contributing, please:
 
 ## License
 
-[Your chosen license]
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
