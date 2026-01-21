@@ -1,0 +1,56 @@
+name: Email Agent Cron
+
+on:
+  schedule:
+    # Runs every 15 minutes
+    - cron: '*/15 * * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  process-emails:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run email agent
+        env:
+          # Zoho Configuration
+          ZOHO_ACCOUNT_ID: ${{ secrets.ZOHO_ACCOUNT_ID }}
+          ZOHO_PROCESSED_LABEL_ID: ${{ secrets.ZOHO_PROCESSED_LABEL_ID }}
+          ZOHO_MCP_URL: ${{ secrets.ZOHO_MCP_URL }}
+          
+          # Email Configuration
+          REPLY_EMAIL_ADDRESS: ${{ secrets.REPLY_EMAIL_ADDRESS }}
+          
+          # LLM Configuration
+          LLM_PROVIDER: openai
+          LLM_MODEL: gpt-4o-mini  # Cheaper model for cost efficiency
+          LLM_TEMPERATURE: 0
+          LLM_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          
+          # Runtime Configuration
+          DRY_RUN: false
+          SEND_REPLY: true
+          ADD_LABEL: true
+          READ_EMAIL_LIMIT: 10
+          
+          # LangSmith (optional - for monitoring)
+          LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: "Z-EMAIL-AGENT-PROD"
+        run: |
+          python main.py

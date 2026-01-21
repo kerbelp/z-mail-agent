@@ -349,6 +349,25 @@ Test with labeling only (no replies):
 SEND_REPLY=false ADD_LABEL=true python main.py
 ```
 
+## Deployment
+
+Deploy z-mail-agent to LangGraph Cloud with scheduled cron jobs for automated email processing. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on:
+
+- Deploying to LangGraph Cloud via GitHub integration
+- Setting up cron scheduling (every 15 mins, hourly, etc.)
+- Managing environment variables securely
+- Monitoring with LangSmith traces
+- Production best practices
+
+Quick deploy:
+```bash
+# Push to GitHub
+git push origin main
+
+# Then deploy via LangSmith UI:
+# https://smith.langchain.com → Deployments → + New Deployment
+```
+
 ## Contributing
 
 Contributions are welcome! Areas for improvement:
