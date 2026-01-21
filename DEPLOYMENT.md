@@ -1,16 +1,111 @@
-# Deploying to LangGraph Cloud
+# Deploying z-mail-agent
 
-This guide walks you through deploying z-mail-agent to LangGraph Cloud with cron scheduling.
+This guide covers two deployment options for running your email agent automatically:
 
-## Prerequisites
+1. **GitHub Actions** (Free, recommended) - Run on GitHub's infrastructure every 15 minutes
+2. **LangGraph Cloud** (Paid, $20-50/month) - Fully managed with advanced monitoring
 
-1. **LangSmith Account**: Sign up at https://smith.langchain.com
-2. **LangGraph CLI**: Install the CLI tool
-   ```bash
-   pip install langgraph-cli
-   ```
+---
 
-## Step 1: Verify Your Configuration
+## Option 1: GitHub Actions (Free & Recommended)
+
+### Prerequisites
+
+- GitHub account
+- Private mirror of z-mail-agent (see README for setup)
+- Your actual prompts/templates committed to the private repo
+
+### Step 1: Add GitHub Secrets
+
+Go to your private repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+
+**Required Secrets:**
+```
+ZOHO_ACCOUNT_ID              # Your Zoho account ID
+ZOHO_PROCESSED_LABEL_ID      # Label ID for processed emails
+ZOHO_MCP_URL                 # MCP server URL
+OPENAI_API_KEY               # OpenAI API key (or LLM provider key)
+REPLY_EMAIL_ADDRESS          # Your reply-from email address
+```
+
+**Optional Secrets:**
+```
+LANGSMITH_TRACING            # Set to "true" for monitoring
+LANGSMITH_API_KEY            # LangSmith API key for traces
+```
+
+### Step 2: Enable GitHub Actions
+
+1. Go to the **Actions** tab in your repo
+2. If prompted, click **"I understand my workflows, go ahead and enable them"**
+3. The workflow will run automatically every 15 minutes
+
+### Step 3: Verify It's Working
+
+1. Go to **Actions** tab
+2. Wait for first run (or trigger manually with **Run workflow**)
+3. Click on the workflow run to see logs
+4. Check that emails are being processed
+
+### Step 4: Customize Schedule (Optional)
+
+Edit `.github/workflows/email-cron.yml` line 5:
+
+```yaml
+schedule:
+  # Every 15 minutes (default)
+  - cron: '*/15 * * * *'
+  
+  # Other options:
+  # Every 30 minutes: '*/30 * * * *'
+  # Every hour: '0 * * * *'
+  # Every 4 hours: '0 */4 * * *'
+  # Daily at 9 AM: '0 9 * * *'
+  # Weekdays only at 9 AM: '0 9 * * 1-5'
+```
+
+Use [crontab.guru](https://crontab.guru) to test cron expressions.
+
+### Monitoring
+
+- **View logs**: Actions tab → Click on workflow run
+- **Manual trigger**: Actions tab → Email Agent Cron → Run workflow
+- **Check status**: Green checkmark = success, Red X = failure
+
+### Syncing Updates from Public Repo
+
+To get framework updates while keeping your private prompts:
+
+```bash
+# One-time setup: Add upstream remote
+git remote add upstream https://github.com/original-user/z-mail-agent.git
+
+# Pull updates
+git fetch upstream
+git merge upstream/main
+
+# Resolve conflicts if any (usually just in .gitignore)
+# Your prompts/templates won't be affected
+
+# Push to your private repo
+git push origin main
+```
+
+### Cost
+
+**$0/month** - GitHub Actions includes 2,000 free minutes/month for private repos (unlimited for public). Each email check takes ~30 seconds, so you can run every 15 minutes 24/7 within the free tier.
+
+---
+
+## Option 2: LangGraph Cloud (Paid)
+
+### Prerequisites
+
+- LangSmith Account: Sign up at https://smith.langchain.com
+- LangGraph CLI: `pip install langgraph-cli`
+- GitHub repo with your code
+
+### Step 1: Verify Configuration
 
 Ensure your [langgraph.json](langgraph.json) is properly configured:
 
@@ -272,31 +367,68 @@ Since `prompts/*.txt` and `templates/*.txt` are gitignored, you need to:
 3. **Use cheaper models**: Switch to `gpt-4o-mini` for simple classifications
 4. **Monitor token usage**: Track costs in LangSmith dashboard
 
-## Example Production Configuration
+**Estimated Cost**: $20-50/month depending on email volume and LLM usage
 
-```bash
-# Production environment variables
-DRY_RUN=false
-SEND_REPLY=true
-ADD_LABEL=true
-READ_EMAIL_LIMIT=50
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini  # Cost-effective
-LLM_TEMPERATURE=0
-LANGSMITH_TRACING=true  # Monitor production
-```
+---
 
-## Next Steps
+## Comparison
 
-After deployment:
-1. ✅ Monitor first few runs closely
-2. ✅ Adjust cron schedule based on email volume
-3. ✅ Add more classification types as needed
-4. ✅ Set up alerting for critical errors
-5. ✅ Review LangSmith traces regularly for optimization
+| Feature | GitHub Actions | LangGraph Cloud |
+|---------|---------------|-----------------|
+| **Cost** | Free | $20-50/month |
+| **Setup** | Easy | Medium |
+| **Monitoring** | Basic (logs) | Advanced (LangSmith) |
+| **Reliability** | High | Very High |
+| **Cold Starts** | ~30s | Minimal |
+| **Customization** | Full control | Limited |
+| **Best For** | Personal use, startups | Enterprise, teams |
+
+## Recommendation
+
+**Start with GitHub Actions** (Option 1) - it's free, reliable, and easy to set up. Migrate to LangGraph Cloud later if you need:
+- More frequent execution (every 1-2 minutes)
+- Advanced monitoring and analytics
+- Team collaboration features
+- Enterprise support
+
+---
+
+## Troubleshooting
+
+### GitHub Actions
+
+**Workflow not running:**
+- Check that Actions are enabled (Settings → Actions)
+- Verify cron syntax at https://crontab.guru
+- Check workflow file for syntax errors
+
+**Secrets not working:**
+- Ensure secret names match exactly (case-sensitive)
+- Re-add secrets if they're not working
+- Check workflow logs for "secret not found" errors
+
+**Agent failing:**
+- Check Actions logs for detailed error messages
+- Verify all required secrets are set
+- Test locally first: `python main.py`
+
+### LangGraph Cloud
+
+**Deployment fails:**
+- Check deployment logs in LangSmith UI
+- Verify `langgraph.json` syntax
+- Test build locally: `langgraph build -t z-mail-agent:latest`
+
+**Cron not triggering:**
+- Verify cron syntax
+- Check timezone settings in LangSmith
+- Ensure deployment is active
+
+---
 
 ## Support
 
+- **Documentation**: [README.md](README.md)
 - **LangGraph Docs**: https://langchain-ai.github.io/langgraph/cloud/
 - **LangSmith**: https://docs.smith.langchain.com/
-- **API Reference**: https://langchain-ai.github.io/langgraph/cloud/reference/api/
+

@@ -4,6 +4,8 @@
 
 An extensible, configuration-driven email automation framework built with LangGraph and LLMs. Automatically classify and respond to emails using custom classification rules and templates - no code changes required.
 
+> **Note:** This is the public framework repository with example configurations. For production use, create a private fork to store your actual prompts and templates. See [Setting Up Your Private Instance](#setting-up-your-private-instance) below.
+
 ## Overview
 
 z-mail-agent is a **generic and extensible** email automation framework that:
@@ -109,11 +111,13 @@ The workflow follows this sequence:
 
 Each node is created using factory functions that accept an `EmailProvider` instance, enabling dependency injection and testability.
 
-## Installation
+## Quick Start
+
+### For Testing/Development
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/yourusername/z-mail-agent.git
 cd z-mail-agent
 ```
 
@@ -122,21 +126,61 @@ cd z-mail-agent
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables (copy from `.env.example`):
+3. Set up environment variables:
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
-4. Configure email classifications and prompts:
+4. Copy and customize example prompts:
 ```bash
-# Copy example files and customize
 cp prompts/article_submission.example.txt prompts/article_submission.txt
 cp templates/article_submission_reply.example.txt templates/article_submission_reply.txt
-
-# Edit classifications
-vi classifications.yaml
 ```
+
+5. Run locally:
+```bash
+python main.py
+```
+
+### Setting Up Your Private Instance
+
+For production use with proprietary prompts and automated scheduling:
+
+1. **Create a private mirror** (not a fork):
+```bash
+# Clone as bare repository
+git clone --bare https://github.com/yourusername/z-mail-agent.git
+
+# Mirror to your new private repo (create it on GitHub first!)
+cd z-mail-agent.git
+git push --mirror https://github.com/yourusername/z-mail-agent-private.git
+
+# Clean up
+cd .. && rm -rf z-mail-agent.git
+
+# Clone your private repo
+git clone https://github.com/yourusername/z-mail-agent-private.git
+cd z-mail-agent-private
+```
+
+2. **Commit your actual prompts and templates**:
+```bash
+# Remove gitignore rules for prompts/templates
+sed -i '' '/# Proprietary content/,/!templates\/\*.example.txt/d' .gitignore
+
+# Add your actual prompts and templates
+git add prompts/*.txt templates/*.txt .gitignore
+git commit -m "Add production prompts and templates"
+git push
+```
+
+3. **Set up GitHub Actions cron**:
+   - Go to **Settings → Secrets and variables → Actions**
+   - Add required secrets (API keys, account IDs, etc.)
+   - Enable Actions - workflow runs automatically every 15 minutes
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
 
 ## Configuration
 
@@ -351,6 +395,24 @@ SEND_REPLY=false ADD_LABEL=true python main.py
 
 ## Deployment
 
+### Free Option: GitHub Actions (Recommended)
+
+Run your agent automatically using GitHub Actions cron (completely free):
+
+1. **Create a private mirror** of this repo (see [Setting Up Your Private Instance](#setting-up-your-private-instance))
+2. **Add your actual prompts/templates** and commit them
+3. **Add GitHub Secrets** (Settings → Secrets → Actions):
+   - `ZOHO_ACCOUNT_ID`
+   - `ZOHO_PROCESSED_LABEL_ID`
+   - `ZOHO_MCP_URL`
+   - `OPENAI_API_KEY`
+   - `REPLY_EMAIL_ADDRESS`
+4. **Enable GitHub Actions** - workflow runs every 15 minutes automatically
+
+The workflow file (`.github/workflows/email-cron.yml`) is already configured!
+
+### Paid Option: LangGraph Cloud
+
 Deploy z-mail-agent to LangGraph Cloud with scheduled cron jobs for automated email processing. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on:
 
 - Deploying to LangGraph Cloud via GitHub integration
@@ -366,6 +428,18 @@ git push origin main
 
 # Then deploy via LangSmith UI:
 # https://smith.langchain.com → Deployments → + New Deployment
+```
+
+### Local Cron
+
+For running on your own always-on computer/server, use the included [run-cron.sh](run-cron.sh) script:
+
+```bash
+chmod +x run-cron.sh
+
+# Add to crontab
+crontab -e
+# Add: */15 * * * * /path/to/z-mail-agent/run-cron.sh
 ```
 
 ## Contributing
