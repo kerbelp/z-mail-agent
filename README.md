@@ -10,7 +10,7 @@ An extensible, configuration-driven email automation framework built with LangGr
 
 z-mail-agent is a **generic and extensible** email automation framework that:
 - Fetches unread emails from your inbox
-- Classifies them using GPT-4o with **custom, user-defined prompts**
+- Classifies them using **configurable AI models** with **custom, user-defined prompts**
 - Sends automated responses based on **configurable templates**
 - Labels processed emails to avoid duplicate processing
 - Supports **unlimited email classifications** via simple YAML configuration
