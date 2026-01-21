@@ -29,7 +29,14 @@ env/
 # Environment variables
 .env
 
-# Proprietary content (business-specific logic and templates)
+# Proprietary content (business-specific prompts and templates)
+# Keep example files for reference, but ignore actual configuration
+prompts/*.txt
+!prompts/*.example.txt
+templates/*.txt
+!templates/*.example.txt
+
+# Legacy files (moved to new structure)
 reply_template.txt
 classification_prompt.txt
 

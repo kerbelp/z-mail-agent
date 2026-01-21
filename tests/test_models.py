@@ -2,36 +2,71 @@
 import pytest
 from pydantic import ValidationError
 
-from models import SubmissionCheck, AgentState
+from models import ClassificationResult, EmailClassification, Classification, AgentState
 
 
-class TestSubmissionCheck:
-    """Tests for SubmissionCheck model."""
+class TestClassificationResult:
+    """Tests for ClassificationResult model (LLM response)."""
     
-    def test_valid_article_submission(self):
-        """Test creating a valid article submission classification."""
-        check = SubmissionCheck(
-            is_article_submission=True,
-            email_type="article_submission"
+    def test_valid_match(self):
+        """Test creating a valid classification match."""
+        result = ClassificationResult(
+            match=True,
+            confidence=0.95,
+            reasoning="Clear article submission request"
         )
         
-        assert check.is_article_submission is True
-        assert check.email_type == "article_submission"
+        assert result.match is True
+        assert result.confidence == 0.95
+        assert result.reasoning == "Clear article submission request"
     
-    def test_valid_other_type(self):
-        """Test creating a valid 'other' classification."""
-        check = SubmissionCheck(
-            is_article_submission=False,
-            email_type="other"
+    def test_valid_no_match(self):
+        """Test creating a valid non-match."""
+        result = ClassificationResult(
+            match=False,
+            confidence=0.85,
+            reasoning="Does not match criteria"
         )
         
-        assert check.is_article_submission is False
-        assert check.email_type == "other"
+        assert result.match is False
+        assert result.confidence == 0.85
     
     def test_missing_required_fields(self):
         """Test that required fields are enforced."""
         with pytest.raises(ValidationError):
-            SubmissionCheck()
+            ClassificationResult()
+
+
+class TestEmailClassification:
+    """Tests for EmailClassification model (final classification)."""
+    
+    def test_valid_classification_with_reply(self):
+        """Test creating a classification with reply action."""
+        classification = EmailClassification(
+            classification_name="article_submission",
+            confidence=0.95,
+            reasoning="Test",
+            action="reply",
+            reply_template="templates/article_submission_reply.txt"
+        )
+        
+        assert classification.classification_name == "article_submission"
+        assert classification.action == "reply"
+        assert classification.reply_template is not None
+    
+    def test_valid_classification_skip(self):
+        """Test creating a skip classification."""
+        classification = EmailClassification(
+            classification_name="unclassified",
+            confidence=1.0,
+            reasoning="No match",
+            action="skip",
+            reply_template=None
+        )
+        
+        assert classification.classification_name == "unclassified"
+        assert classification.action == "skip"
+        assert classification.reply_template is None
 
 
 class TestAgentState:

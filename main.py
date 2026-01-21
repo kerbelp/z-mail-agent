@@ -10,8 +10,7 @@ from nodes import (
     create_ingest_node,
     create_classify_node,
     classification_router,
-    create_article_submission_handler,
-    create_skip_handler,
+    create_classification_handler,
     route_after_action
 )
 
@@ -28,8 +27,7 @@ def build_workflow():
     # Create node functions with dependency injection
     ingest_node = create_ingest_node(email_provider)
     classify_node = create_classify_node(email_provider)
-    article_handler = create_article_submission_handler(email_provider)
-    skip_handler = create_skip_handler(email_provider)
+    classification_handler = create_classification_handler(email_provider)
     
     # Build workflow graph
     workflow = StateGraph(AgentState)
@@ -37,8 +35,7 @@ def build_workflow():
     # Add nodes
     workflow.add_node("ingest", ingest_node)
     workflow.add_node("classify", classify_node)
-    workflow.add_node("handle_article_submission", article_handler)
-    workflow.add_node("skip_email", skip_handler)
+    workflow.add_node("handle_classification", classification_handler)
     
     # Add edges
     workflow.add_edge(START, "ingest")
@@ -46,17 +43,12 @@ def build_workflow():
     
     # Conditional routing from classify node
     workflow.add_conditional_edges("classify", classification_router, {
-        "handle_article_submission": "handle_article_submission",
-        "skip_email": "skip_email",
+        "handle_classification": "handle_classification",
         END: END
     })
     
-    # Conditional routing after action nodes (loop or end)
-    workflow.add_conditional_edges("handle_article_submission", route_after_action, {
-        "classify": "classify",
-        END: END
-    })
-    workflow.add_conditional_edges("skip_email", route_after_action, {
+    # Conditional routing after action node (loop or end)
+    workflow.add_conditional_edges("handle_classification", route_after_action, {
         "classify": "classify",
         END: END
     })

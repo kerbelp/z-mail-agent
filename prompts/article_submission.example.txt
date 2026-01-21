@@ -1,0 +1,19 @@
+Is this email requesting to submit an article or guest post?
+
+CLASSIFY AS TRUE (match) ONLY if:
+- Someone is ASKING/REQUESTING to submit or publish an article
+- Keywords: 'may I', 'can I', 'I would like to', 'I want to', 'requesting to', 'interested in publishing', 'guest post', 'collaboration'
+- They are proposing an article idea or asking permission
+
+CLASSIFY AS FALSE (no match) if:
+- It's a confirmation/acknowledgment that they WILL send an article (e.g., "we will send", "thank you we'll")
+- It's a follow-up or reply in a thread
+- It's answering a previous request
+- Keywords: 'thank you', 'thanks', 'will send', 'we'll provide', 'confirmation', 'acknowledged'
+
+Return JSON with this structure:
+{
+  "match": true/false,
+  "confidence": 0.95,
+  "reasoning": "Brief explanation of why this matches or doesn't match"
+}

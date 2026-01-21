@@ -1,15 +1,14 @@
 """Tests for workflow nodes."""
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, mock_open
 
 from nodes.ingest import create_ingest_node
 from nodes.classify import create_classify_node, classification_router
 from nodes.handlers import (
-    create_article_submission_handler,
-    create_skip_handler,
+    create_classification_handler,
     route_after_action
 )
-from models import SubmissionCheck
+from models import ClassificationResult, EmailClassification
 
 
 class TestIngestNode:
@@ -53,7 +52,9 @@ class TestIngestNode:
 class TestClassifyNode:
     """Tests for email classification node."""
     
-    def test_classify_email(self, mock_email_provider, sample_email):
+    @patch('nodes.classify.load_classifications')
+    @patch('nodes.classify.load_prompt')
+    def test_classify_email(self, mock_load_prompt, mock_load_classifications, mock_email_provider, sample_email):
         """Test email classification."""
         state = {
             "emails": [sample_email],
@@ -65,19 +66,31 @@ class TestClassifyNode:
             "classification_result": None
         }
         
+        mock_load_classifications.return_value = [
+            {
+                'name': 'article_submission',
+                'priority': 1,
+                'classification_prompt': 'prompts/article_submission.txt',
+                'action': 'reply',
+                'reply_template': 'templates/article_submission_reply.txt'
+            }
+        ]
+        mock_load_prompt.return_value = "Is this an article submission?"
         mock_email_provider.get_email_content.return_value = "I would like to submit an article"
         
         with patch('nodes.classify.structured_llm') as mock_llm:
-            mock_llm.invoke.return_value = SubmissionCheck(
-                is_article_submission=True,
-                email_type="article_submission"
+            mock_llm.invoke.return_value = ClassificationResult(
+                match=True,
+                confidence=0.95,
+                reasoning="Clear article submission request"
             )
             
             classify_node = create_classify_node(mock_email_provider)
             result = classify_node(state)
             
             assert result["current_email"] == sample_email
-            assert result["classification_result"].email_type == "article_submission"
+            assert result["classification_result"].classification_name == "article_submission"
+            assert result["classification_result"].action == "reply"
     
     def test_classify_out_of_range(self, mock_email_provider):
         """Test classification when index is out of range."""
@@ -101,36 +114,27 @@ class TestClassifyNode:
 class TestClassificationRouter:
     """Tests for classification routing logic."""
     
-    def test_router_to_article_submission(self):
-        """Test routing to article submission handler."""
+    def test_router_to_handler(self):
+        """Test routing to classification handler."""
         state = {
             "emails": [{}],
             "current_index": 0,
-            "classification_result": SubmissionCheck(
-                is_article_submission=True,
-                email_type="article_submission"
+            "classification_result": EmailClassification(
+                classification_name="article_submission",
+                confidence=0.95,
+                reasoning="Test",
+                action="reply",
+                reply_template="templates/article_submission_reply.txt"
             )
         }
         
         route = classification_router(state)
-        assert route == "handle_article_submission"
-    
-    def test_router_to_skip(self):
-        """Test routing to skip handler."""
-        state = {
-            "emails": [{}],
-            "current_index": 0,
-            "classification_result": SubmissionCheck(
-                is_article_submission=False,
-                email_type="other"
-            )
-        }
-        
-        route = classification_router(state)
-        assert route == "skip_email"
+        assert route == "handle_classification"
     
     def test_router_no_classification(self):
         """Test routing when no classification result."""
+        from langgraph.graph import END
+        
         state = {
             "emails": [{}],
             "current_index": 0,
@@ -138,7 +142,7 @@ class TestClassificationRouter:
         }
         
         route = classification_router(state)
-        assert route == "skip_email"
+        assert route == END
     
     def test_router_to_end_no_emails(self):
         """Test routing to END when no emails to process."""
@@ -154,13 +158,15 @@ class TestClassificationRouter:
         assert route == END
 
 
-class TestArticleSubmissionHandler:
-    """Tests for article submission handler."""
+class TestClassificationHandler:
+    """Tests for generic classification handler."""
     
+    @patch('nodes.handlers.load_template')
     @patch('nodes.handlers.RUN_CONFIG')
-    def test_handle_submission_dry_run(self, mock_config, mock_email_provider, sample_email):
-        """Test handling submission in dry run mode."""
+    def test_handle_reply_action_dry_run(self, mock_config, mock_load_template, mock_email_provider, sample_email):
+        """Test handling reply action in dry run mode."""
         mock_config.dry_run = True
+        mock_load_template.return_value = "Reply template content"
         
         with patch('nodes.handlers.PROCESSED_LABEL_ID', 'label_123'):
             state = {
@@ -170,10 +176,16 @@ class TestArticleSubmissionHandler:
                 "processed_count": 0,
                 "replied_count": 0,
                 "errors": [],
-                "classification_result": None
+                "classification_result": EmailClassification(
+                    classification_name="article_submission",
+                    confidence=0.95,
+                    reasoning="Test",
+                    action="reply",
+                    reply_template="templates/article_submission_reply.txt"
+                )
             }
             
-            handler = create_article_submission_handler(mock_email_provider)
+            handler = create_classification_handler(mock_email_provider)
             result = handler(state)
             
             assert result["replied_count"] == 1
@@ -181,10 +193,14 @@ class TestArticleSubmissionHandler:
             assert result["current_index"] == 1
             assert mock_email_provider.apply_label.called
     
+    @patch('nodes.handlers.load_template')
     @patch('nodes.handlers.RUN_CONFIG')
-    def test_handle_submission_success(self, mock_config, mock_email_provider, sample_email):
-        """Test successful submission handling."""
+    def test_handle_reply_action_success(self, mock_config, mock_load_template, mock_email_provider, sample_email):
+        """Test successful reply action handling."""
         mock_config.dry_run = False
+        mock_config.send_reply = True
+        mock_config.add_label = True
+        mock_load_template.return_value = "Reply template content"
         
         mock_email_provider.send_reply.return_value = True
         
@@ -196,10 +212,16 @@ class TestArticleSubmissionHandler:
                 "processed_count": 0,
                 "replied_count": 0,
                 "errors": [],
-                "classification_result": None
+                "classification_result": EmailClassification(
+                    classification_name="article_submission",
+                    confidence=0.95,
+                    reasoning="Test",
+                    action="reply",
+                    reply_template="templates/article_submission_reply.txt"
+                )
             }
             
-            handler = create_article_submission_handler(mock_email_provider)
+            handler = create_classification_handler(mock_email_provider)
             result = handler(state)
             
             assert result["replied_count"] == 1
@@ -209,13 +231,11 @@ class TestArticleSubmissionHandler:
             assert mock_email_provider.apply_label.called
     
     @patch('nodes.handlers.RUN_CONFIG')
-    def test_handle_submission_missing_label_id(self, mock_config, mock_email_provider, sample_email):
-        """Test handling submission when label ID is not configured."""
-        mock_config.dry_run = False
+    def test_handle_skip_action(self, mock_config, mock_email_provider, sample_email):
+        """Test skip action handling."""
+        mock_config.add_label = True
         
-        mock_email_provider.send_reply.return_value = True
-        
-        with patch('nodes.handlers.PROCESSED_LABEL_ID', None):
+        with patch('nodes.handlers.PROCESSED_LABEL_ID', 'label_123'):
             state = {
                 "emails": [sample_email],
                 "current_email": sample_email,
@@ -223,62 +243,22 @@ class TestArticleSubmissionHandler:
                 "processed_count": 0,
                 "replied_count": 0,
                 "errors": [],
-                "classification_result": None
+                "classification_result": EmailClassification(
+                    classification_name="other",
+                    confidence=1.0,
+                    reasoning="Does not match",
+                    action="skip",
+                    reply_template=None
+                )
             }
             
-            handler = create_article_submission_handler(mock_email_provider)
+            handler = create_classification_handler(mock_email_provider)
             result = handler(state)
             
-            # Should complete successfully without applying label
-            assert result["replied_count"] == 1
-            assert not mock_email_provider.apply_label.called
-
-
-class TestSkipHandler:
-    """Tests for skip email handler."""
-    
-    def test_skip_email(self, mock_email_provider, sample_email, monkeypatch):
-        """Test skipping an email."""
-        monkeypatch.setattr('nodes.handlers.PROCESSED_LABEL_ID', 'label_123')
-        
-        state = {
-            "emails": [sample_email],
-            "current_email": sample_email,
-            "current_index": 0,
-            "processed_count": 0,
-            "replied_count": 0,
-            "errors": [],
-            "classification_result": None
-        }
-        
-        handler = create_skip_handler(mock_email_provider)
-        result = handler(state)
-        
-        assert result["processed_count"] == 1
-        assert result["replied_count"] == 0
-        assert result["current_index"] == 1
-        assert mock_email_provider.apply_label.called
-    
-    def test_skip_email_missing_label_id(self, mock_email_provider, sample_email, monkeypatch):
-        """Test skipping when label ID is not configured."""
-        monkeypatch.setattr('nodes.handlers.PROCESSED_LABEL_ID', None)
-        
-        state = {
-            "emails": [sample_email],
-            "current_email": sample_email,
-            "current_index": 0,
-            "processed_count": 0,
-            "replied_count": 0,
-            "errors": [],
-            "classification_result": None
-        }
-        
-        handler = create_skip_handler(mock_email_provider)
-        result = handler(state)
-        
-        # Should complete successfully without applying label
-        assert result["processed_count"] == 1
-        assert not mock_email_provider.apply_label.called
+            assert result["processed_count"] == 1
+            assert result["replied_count"] == 0
+            assert result["current_index"] == 1
+            assert mock_email_provider.apply_label.called
 
 
 class TestRouteAfterAction:

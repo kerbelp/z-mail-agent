@@ -1,8 +1,0 @@
-Thank you for reaching out!
-
-[Replace this with your custom reply template]
-
-You can customize this template to match your needs. The system will automatically load it when the application starts.
-
-Best regards,
-[Your Name]

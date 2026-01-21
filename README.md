@@ -2,16 +2,19 @@
 
 ![Banner](assets/z-mail-agent.jpg)
 
-An intelligent email assistant powered by LangGraph and LLMs that automatically processes and responds to article submission requests.
+An extensible, configuration-driven email automation framework built with LangGraph and LLMs. Automatically classify and respond to emails using custom classification rules and templates - no code changes required.
 
 ## Overview
 
-This email assistant automatically:
+z-mail-agent is a **generic and extensible** email automation framework that:
 - Fetches unread emails from your inbox
-- Classifies them using GPT-4o to identify article submission requests
-- Sends automated responses to genuine submission requests
+- Classifies them using GPT-4o with **custom, user-defined prompts**
+- Sends automated responses based on **configurable templates**
 - Labels processed emails to avoid duplicate processing
+- Supports **unlimited email classifications** via simple YAML configuration
 - Provides detailed logging and error handling
+
+**Add new email types without touching code** - just edit configuration files!
 
 ## Architecture
 
@@ -21,21 +24,50 @@ The codebase is organized into modular components for easy maintenance and exten
 
 ```
 z-mail-agent/
-├── main.py                 # Entry point with LangGraph workflow
-├── config.py              # Configuration management
-├── models.py              # Type definitions (Pydantic models, AgentState)
-├── email_providers/       # Email provider implementations
+├── main.py                     # Entry point with LangGraph workflow
+├── config.py                   # Runtime configuration (env vars, logging)
+├── classifications.yaml        # Email classification definitions (THE BRAIN)
+├── models.py                   # Type definitions (Pydantic models, AgentState)
+├── prompts/                    # Classification prompts (one per type)
+│   └── article_submission.txt
+├── templates/                  # Reply templates (one per classification)
+│   └── article_submission_reply.txt
+├── email_providers/            # Email provider implementations
 │   ├── __init__.py
-│   ├── base.py           # Abstract EmailProvider interface
-│   └── zoho.py           # Zoho Mail implementation
-└── nodes/                 # LangGraph workflow nodes
+│   ├── base.py                # Abstract EmailProvider interface
+│   └── zoho.py                # Zoho Mail implementation
+└── nodes/                      # LangGraph workflow nodes
     ├── __init__.py
-    ├── ingest.py         # Email ingestion node
-    ├── classify.py       # Email classification with LLM
-    └── handlers.py       # Action handlers (reply, skip)
+    ├── ingest.py              # Email ingestion node
+    ├── classify.py            # Email classification with LLM
+    └── handlers.py            # Action handlers (reply, skip)
 ```
 
 ### Key Components
+
+#### Configuration-Driven Classification
+
+Define email classifications in [classifications.yaml](classifications.yaml):
+
+```yaml
+classifications:
+  - name: article_submission
+    priority: 1
+    description: "Requests to submit articles or guest posts"
+    classification_prompt: prompts/article_submission.txt
+    action: reply
+    reply_template: templates/article_submission_reply.txt
+```
+
+Each classification specifies:
+- **name**: Unique identifier
+- **priority**: Processing order (lower = checked first)
+- **description**: Human-readable description
+- **classification_prompt**: Path to custom prompt file
+- **action**: What to do (reply, skip, forward, label)
+- **reply_template**: Path to reply template (if action=reply)
+
+Classifications are checked in priority order using a **waterfall approach** - the first match wins. Unmatched emails are automatically skipped.
 
 #### Email Provider Interface
 
@@ -71,8 +103,8 @@ This design allows you to easily add support for other email providers (Gmail, O
 The workflow follows this sequence:
 
 1. **Ingest** - Fetch unread emails (excluding already processed ones)
-2. **Classify** - Use LLM to identify article submission requests
-3. **Handle/Skip** - Send automated reply or skip based on classification
+2. **Classify** - Use LLM with custom prompts to classify emails (waterfall approach)
+3. **Handle** - Execute action based on classification (reply, skip, etc.)
 4. **Loop** - Process next email or end workflow
 
 Each node is created using factory functions that accept an `EmailProvider` instance, enabling dependency injection and testability.
@@ -94,6 +126,16 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
+```
+
+4. Configure email classifications and prompts:
+```bash
+# Copy example files and customize
+cp prompts/article_submission.example.txt prompts/article_submission.txt
+cp templates/article_submission_reply.example.txt templates/article_submission_reply.txt
+
+# Edit classifications
+vi classifications.yaml
 ```
 
 ## Configuration
@@ -123,6 +165,56 @@ ADD_LABEL=true       # Apply labels to processed emails
 - **SEND_REPLY**: Controls whether to send automated replies (only relevant when `DRY_RUN=false`)
 - **ADD_LABEL**: Controls whether to apply labels to processed emails
 
+## Configuring Email Classifications
+
+Add new email types by editing [classifications.yaml](classifications.yaml):
+
+### 1. Add Classification Entry
+
+```yaml
+classifications:
+  - name: support_request
+    priority: 2
+    description: "Customer support inquiries"
+    classification_prompt: prompts/support_request.txt
+    action: reply
+    reply_template: templates/support_reply.txt
+```
+
+### 2. Create Classification Prompt
+
+Create `prompts/support_request.txt`:
+```
+Is this email a customer support request?
+
+CLASSIFY AS TRUE (match) if:
+- Requesting help or assistance
+- Reporting an issue or problem
+- Keywords: 'help', 'support', 'issue', 'problem', 'not working'
+
+CLASSIFY AS FALSE (no match) if:
+- General inquiries
+- Sales questions
+
+Return JSON: {"match": true/false, "confidence": 0.95, "reasoning": "..."}
+```
+
+### 3. Create Reply Template
+
+Create `templates/support_reply.txt`:
+```
+Thank you for contacting support.
+
+We've received your request and will respond within 24 hours.
+
+Best regards,
+Support Team
+```
+
+### 4. Done!
+
+No code changes needed - the framework automatically loads and uses your new classification.
+
 ## Usage
 
 Run the assistant:
@@ -134,7 +226,7 @@ python main.py
 The assistant will:
 1. Fetch unread emails from your inbox
 2. Filter out already-processed emails (those with the "processed by z-mail-agent" label)
-3. Classify each email to identify article submission requests
+3. Classify each email using your custom prompts (in priority order)
 4. Send automated responses to genuine requests
 5. Apply labels to all processed emails
 6. Display a summary of actions taken

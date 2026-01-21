@@ -120,55 +120,5 @@ ZOHO_ACCOUNT_ID = os.getenv("ZOHO_ACCOUNT_ID")
 # Generic label ID for processed emails (provider-agnostic)
 PROCESSED_LABEL_ID = os.getenv("ZOHO_PROCESSED_LABEL_ID")
 
-# Email reply template
-# Load from file to keep proprietary content out of version control
-def _load_reply_template() -> str:
-    """Load reply template from file or environment variable."""
-    # Try loading from environment variable first
-    env_template = os.getenv("REPLY_TEMPLATE")
-    if env_template:
-        return env_template
-    
-    # Try loading from external file
-    template_file = os.path.join(os.path.dirname(__file__), "reply_template.txt")
-    if os.path.exists(template_file):
-        with open(template_file, 'r', encoding='utf-8') as f:
-            return f.read()
-    
-    # No template found - this is a critical error
-    raise ValueError(
-        "REPLY_TEMPLATE is not configured. Please either:\n"
-        "  1. Set REPLY_TEMPLATE environment variable, or\n"
-        "  2. Create reply_template.txt file in the project root\n"
-        "See reply_template.example.txt for reference."
-    )
-
-REPLY_TEMPLATE = _load_reply_template()
-
-# Classification prompt
-# Load from file to keep proprietary logic out of version control
-def _load_classification_prompt() -> str:
-    """Load classification prompt from file or environment variable."""
-    # Try loading from environment variable first
-    env_prompt = os.getenv("CLASSIFICATION_PROMPT")
-    if env_prompt:
-        return env_prompt
-    
-    # Try loading from external file
-    prompt_file = os.path.join(os.path.dirname(__file__), "classification_prompt.txt")
-    if os.path.exists(prompt_file):
-        with open(prompt_file, 'r', encoding='utf-8') as f:
-            return f.read()
-    
-    # No prompt found - this is a critical error
-    raise ValueError(
-        "CLASSIFICATION_PROMPT is not configured. Please either:\n"
-        "  1. Set CLASSIFICATION_PROMPT environment variable, or\n"
-        "  2. Create classification_prompt.txt file in the project root\n"
-        "See classification_prompt.example.txt for reference."
-    )
-
-CLASSIFICATION_PROMPT = _load_classification_prompt()
-
 # OpenAI settings
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
